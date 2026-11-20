@@ -1,0 +1,73 @@
+name: Build SIPRIN Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Capacitor Android & CLI
+        run: |
+          npm install @capacitor/android@^8 --no-save
+          npm install --save-dev @capacitor/cli@^8 --no-save
+
+      - name: Build React application
+        run: npm run build
+
+      - name: Add Android platform
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+
+      - name: Sync Android & App Icons
+        run: |
+          npx cap sync android
+          for dir in android/app/src/main/res/mipmap-*; do
+            if [ -d "$dir" ]; then
+              [ -f "$dir/ic_launcher.png" ] && cp public/pwa-192x192.png "$dir/ic_launcher.png" || true
+              [ -f "$dir/ic_launcher_round.png" ] && cp public/pwa-192x192.png "$dir/ic_launcher_round.png" || true
+              [ -f "$dir/ic_launcher_foreground.png" ] && cp public/pwa-maskable-512x512.png "$dir/ic_launcher_foreground.png" || true
+            fi
+          done
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload SIPRIN APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SIPRIN-POLRI-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
